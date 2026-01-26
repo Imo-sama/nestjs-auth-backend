@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import axios from 'axios'
 import { useAuth } from '@/components/AuthProvider'
 
@@ -48,6 +49,9 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo/Title */}
         <div className="text-center mb-8">
+          <div className="flex justify-center mb-6">
+            <Image src="/logo.png" alt="Logo" width={120} height={120} />
+          </div>
           <h1 className="text-4xl font-bold text-white mb-2">Welcome Back</h1>
           <p className="text-gray-400">Sign in to your account</p>
         </div>
