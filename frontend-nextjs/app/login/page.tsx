@@ -45,12 +45,12 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
+    <div className="min-h-screen flex items-center justify-center p-4 relative z-10">
       <div className="w-full max-w-md">
         {/* Logo/Title */}
         <div className="text-center mb-8">
           <div className="flex justify-center mb-6">
-            <Image src="/logo.png" alt="Logo" width={120} height={120} />
+            <Image src="/logo.png" alt="Logo" width={120} height={120} className="w-30 h-30" />
           </div>
           <h1 className="text-4xl font-bold text-white mb-2">Welcome Back</h1>
           <p className="text-gray-400">Sign in to your account</p>

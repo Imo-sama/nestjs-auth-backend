@@ -109,7 +109,7 @@ export default function TwoFactorSetupPage() {
   if (!user) return <div className="min-h-screen flex items-center justify-center text-white">Loading...</div>
 
   return (
-    <div className="min-h-screen p-8">
+    <div className="min-h-screen p-8 relative z-10">
       <div className="max-w-2xl mx-auto">
         <div className="mb-8">
           <button
