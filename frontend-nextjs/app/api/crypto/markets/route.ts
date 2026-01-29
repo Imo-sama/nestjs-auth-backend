@@ -2,16 +2,14 @@ import { NextResponse } from 'next/server'
 
 export async function GET() {
   try {
-    // Add delay to avoid rate limiting
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    
+    // No delay - Next.js cache handles rate limiting automatically
     const response = await fetch(
       'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=50&page=1&sparkline=false&price_change_percentage=7d',
       {
         headers: {
           'Accept': 'application/json',
         },
-        next: { revalidate: 60 } // Cache for 60 seconds
+        next: { revalidate: 30 } // Cache for 30 seconds for faster updates
       }
     )
 

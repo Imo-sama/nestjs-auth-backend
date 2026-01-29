@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, memo } from 'react'
+import { useState, useEffect, useMemo, memo, useCallback } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 
@@ -74,7 +74,15 @@ const CoinRow = memo(({ coin }: { coin: Coin }) => (
       {formatNumber(coin.total_volume)}
     </td>
   </tr>
-))
+), (prevProps, nextProps) => {
+  // Custom comparison: only re-render if price or change percentage actually changed
+  return (
+    prevProps.coin.id === nextProps.coin.id &&
+    prevProps.coin.current_price === nextProps.coin.current_price &&
+    prevProps.coin.price_change_percentage_24h === nextProps.coin.price_change_percentage_24h &&
+    prevProps.coin.price_change_percentage_7d_in_currency === nextProps.coin.price_change_percentage_7d_in_currency
+  )
+})
 
 CoinRow.displayName = 'CoinRow'
 
@@ -99,14 +107,18 @@ export default function MarketPage() {
         setError(null)
         setLoading(true)
         
-        // Use Next.js API route to avoid CORS issues
-        const coinsRes = await fetch('/api/crypto/markets', {
-          method: 'GET',
-          headers: { 
-            'Accept': 'application/json',
-          },
-        })
+        // Fetch both APIs in parallel for faster loading
+        const [coinsRes, globalRes] = await Promise.all([
+          fetch('/api/crypto/markets', {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' },
+          }),
+          fetch('/api/crypto/global', {
+            headers: { 'Accept': 'application/json' },
+          })
+        ])
         
+        // Process coins data
         if (!coinsRes.ok) {
           const errorData = await coinsRes.json().catch(() => ({}))
           if (coinsRes.status === 429 || coinsRes.status === 401) {
@@ -121,30 +133,23 @@ export default function MarketPage() {
           throw new Error('No market data available')
         }
         
-        if (isMounted) {
-          setCoins(coinsData)
-          setLoading(false)
-        }
-        
-        // Fetch global data
-        try {
-          const globalRes = await fetch('/api/crypto/global', {
-            headers: { 'Accept': 'application/json' },
-          })
-          
-          if (globalRes.ok) {
-            const globalDataRes = await globalRes.json()
+        // Process global data (non-blocking)
+        if (globalRes.ok) {
+          globalRes.json().then(globalDataRes => {
             if (isMounted && globalDataRes?.data) {
               setGlobalData(globalDataRes.data)
             }
-          }
-        } catch (globalError) {
-          console.warn('Could not fetch global data:', globalError)
+          }).catch(() => {}) // Silently fail if global data fails
         }
         
-        // Start WebSocket after initial data load
-        if (isMounted && coinsData.length > 0) {
-          connectWebSocket(coinsData)
+        if (isMounted) {
+          setCoins(coinsData)
+          setLoading(false)
+          
+          // Start WebSocket immediately after coins data loads
+          if (coinsData.length > 0) {
+            connectWebSocket(coinsData)
+          }
         }
         
       } catch (error: any) {
@@ -169,19 +174,26 @@ export default function MarketPage() {
         const updates = { ...updateQueue }
         updateQueue = {}
         
-        setCoins(prevCoins => 
-          prevCoins.map(coin => {
+        setCoins(prevCoins => {
+          let hasChanges = false
+          const updatedCoins = prevCoins.map(coin => {
             const update = updates[coin.symbol.toLowerCase()]
             if (update) {
-              return {
-                ...coin,
-                current_price: update.price,
-                price_change_percentage_24h: update.change
+              // Only create new object if values actually changed
+              if (coin.current_price !== update.price || coin.price_change_percentage_24h !== update.change) {
+                hasChanges = true
+                return {
+                  ...coin,
+                  current_price: update.price,
+                  price_change_percentage_24h: update.change
+                }
               }
             }
             return coin
           })
-        )
+          // Only update state if there were actual changes
+          return hasChanges ? updatedCoins : prevCoins
+        })
       }
 
       // Create WebSocket streams for top 15 coins only
@@ -217,12 +229,12 @@ export default function MarketPage() {
             // Add to queue instead of immediate update
             updateQueue[symbol] = { price, change: priceChange24h }
 
-            // Batch updates every 2000ms (2 seconds) for smoother performance
+            // Batch updates every 300ms for very fast updates while preventing lag
             if (!updateTimer) {
               updateTimer = setTimeout(() => {
                 flushUpdates()
                 updateTimer = null
-              }, 2000)
+              }, 300)
             }
           }
         } catch (err) {
@@ -272,11 +284,14 @@ export default function MarketPage() {
     ), [coins, searchTerm]
   )
 
-  const topGainers = useMemo(() => 
-    [...coins].sort((a, b) => 
+  const topGainers = useMemo(() => {
+    if (coins.length === 0) return []
+    // Only sort if we have coins and create minimal copy
+    const sorted = coins.slice().sort((a, b) => 
       (b.price_change_percentage_24h || 0) - (a.price_change_percentage_24h || 0)
-    ).slice(0, 5), [coins]
-  )
+    )
+    return sorted.slice(0, 5)
+  }, [coins])
 
   return (
     <div className="min-h-screen relative z-10">
